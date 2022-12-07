@@ -16,6 +16,9 @@ from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
 
+from utils.seed import seed_everything
+import wandb
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -36,6 +39,10 @@ def parse_args():
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
 
+    # 추가
+    parser.add_argument('--exp_name', type=str, default='test')
+    parser.add_argument('--seed', type=int, default=444)
+
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -46,6 +53,16 @@ def parse_args():
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
+     # fix seed
+    seed_everything(seed)
+    
+    # wandb
+    wandb.login()
+    exp_name = increment_path(model_dir, exp_name)
+    config = args.__dict__
+    config['exp_name'] = exp_name
+    wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
+
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -77,6 +94,11 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
+                # wandb logging
+                wandb.log({
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
+                    'IoU loss': extra_info['iou_loss']
+                })
                 pbar.set_postfix(val_dict)
 
         scheduler.step()
