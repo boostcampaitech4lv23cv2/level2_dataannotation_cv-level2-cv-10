@@ -1,4 +1,3 @@
-# 변경가능
 import os
 import os.path as osp
 import time
@@ -16,6 +15,9 @@ from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
 
+import wandb 
+from pathlib import Path
+from utils.seed import seed_everything
 
 def parse_args():
     parser = ArgumentParser()
@@ -35,7 +37,8 @@ def parse_args():
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
-
+    parser.add_argument('--exp_name', type=str, default="test")
+    
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -43,9 +46,24 @@ def parse_args():
 
     return args
 
+def increment_path(model_dir, exp_name, exist_ok=False):
+    """ Automatically increment path, i.e. trained_models/exp --> trained_models/exp0, trained_models/exp1 etc.
+    Args:
+    exist_ok (bool): whether increment path (increment if False).
+    """
+    path = osp.join(model_dir, exp_name)
+    path = Path(path)
+    if (path.exists() and exist_ok) or (not path.exists()):
+        return str(exp_name)
+    else:
+        dirs = glob.glob(f"{path}*")
+        matches = [re.search(rf"%s(\d+)" % path.stem, d) for d in dirs]
+        i = [int(m.groups()[0]) for m in matches if m]
+        n = max(i) + 1 if i else 2
+        return f"{exp_name}{n}"
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval):
+                learning_rate, max_epoch, save_interval, exp_name):
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -77,6 +95,10 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
+                wandb.log({
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
+                    'IoU loss': extra_info['iou_loss']
+                })
                 pbar.set_postfix(val_dict)
 
         scheduler.step()
@@ -96,27 +118,13 @@ def main(args):
     do_training(**args.__dict__)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     args = parse_args()
+    seed_everything()
+    exp_name = args.exp_name
+    exp_name = increment_path(args.model_dir, exp_name)
+    config = args.__dict__
+    config['exp_name'] = exp_name
+    wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
+    
     main(args)
-
-
-# 변경 가능한 부분
-# batch_size
-# lr_rate, epoch
-# lr_rate_scheduling
-# optimizer
-# data augmentation
-# input_data
-
-# 1. eda
-
-# 2.det eval.py가 어디서 사용됨?
-# deteval적용해서 loss값 알아보기
-# deteval적용해서 save best
-
-# 3. detect.py는 뭐하는데 쓰임?
-
-# 4. 실험을 통해 변경 가능한 부분에서 최댓값 알아보기
-
-# 5. (confusion matrix를 통해) 어떤 부분에 대해서 학습이 부족한지? 알아보기
