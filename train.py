@@ -20,6 +20,23 @@ from utils.seed import seed_everything
 import wandb
 
 
+def increment_path(path, exist_ok=False):
+    """ Automatically increment path, i.e. runs/exp --> runs/exp0, runs/exp1 etc.
+    Args:
+        path (str or pathlib.Path): f"{model_dir}/{args.name}".
+        exist_ok (bool): whether increment path (increment if False).
+    """
+    path = Path(path)
+    if (path.exists() and exist_ok) or (not path.exists()):
+        return str(path)
+    else:
+        dirs = glob.glob(f"{path}*")
+        matches = [re.search(rf"%s(\d+)" % path.stem, d) for d in dirs]
+        i = [int(m.groups()[0]) for m in matches if m]
+        n = max(i) + 1 if i else 2
+        return f"{path}{n}"
+
+
 def parse_args():
     parser = ArgumentParser()
 
@@ -103,6 +120,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
         scheduler.step()
 
+        #TODO: validation
+
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
 
@@ -113,6 +132,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
 
+    wandb.finish()
 
 def main(args):
     do_training(**args.__dict__)
