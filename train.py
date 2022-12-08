@@ -16,6 +16,25 @@ from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
 
+from utils.seed import seed_everything
+import wandb
+
+# def increment_path(model_dir, exp_name, exist_ok=False):
+#     """ Automatically increment path, i.e. trained_models/exp --> trained_models/exp0, trained_models/exp1 etc.
+#     Args:
+#         exist_ok (bool): whether increment path (increment if False).
+#     """
+#     path = osp.join(model_dir, exp_name)
+#     path = Path(path)
+#     if (path.exists() and exist_ok) or (not path.exists()):
+#         return str(exp_name)
+#     else:
+#         dirs = glob.glob(f"{path}*")
+#         matches = [re.search(rf"%s(\d+)" % path.stem, d) for d in dirs]
+#         i = [int(m.groups()[0]) for m in matches if m]
+#         n = max(i) + 1 if i else 2
+#         return f"{exp_name}{n}"
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -36,6 +55,10 @@ def parse_args():
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
 
+    # 추가
+    parser.add_argument('--exp_name', type=str, default='test')
+    parser.add_argument('--seed', type=int, default=214)
+
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -45,7 +68,19 @@ def parse_args():
 
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval):
+                learning_rate, max_epoch, save_interval, seed, exp_name):
+
+    # fix seed
+    seed_everything(seed)
+    
+    # wandb
+    wandb.login()
+    # exp_name = increment_path(model_dir, exp_name)
+    config = args.__dict__
+    config['exp_name'] = exp_name
+    wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
+
+
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -77,6 +112,11 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
+                # wandb logging
+                wandb.log({
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
+                    'IoU loss': extra_info['iou_loss']
+                })
                 pbar.set_postfix(val_dict)
 
         scheduler.step()
@@ -91,6 +131,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
 
+    wandb.finish()
 
 def main(args):
     do_training(**args.__dict__)
