@@ -40,7 +40,7 @@ def parse_args():
 
     # 추가
     parser.add_argument('--exp_name', type=str, default='test')
-    parser.add_argument('--seed', type=int, default=214)
+    parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
 
@@ -50,7 +50,7 @@ def parse_args():
     return args
 
 
-def do_training(args, data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval, seed, exp_name):
     # fix seed
     seed_everything(seed)
@@ -111,10 +111,12 @@ def do_training(args, data_dir, model_dir, device, image_size, input_size, num_w
 
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+            
+    wandb.finish()
 
 
 def main(args):
-    do_training(args, **args.__dict__)
+    do_training(**args.__dict__)
 
 
 if __name__ == '__main__':
