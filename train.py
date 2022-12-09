@@ -24,7 +24,7 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR19'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -128,3 +128,4 @@ if __name__ == '__main__':
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
     
     main(args)
+    wandb.finish()
