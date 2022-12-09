@@ -37,8 +37,7 @@ def parse_args():
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
-    parser.add_argument('--exp_name', type=str, default="test")
-    
+
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -63,7 +62,7 @@ def increment_path(model_dir, exp_name, exist_ok=False):
         return f"{exp_name}{n}"
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval, exp_name):
+                learning_rate, max_epoch, save_interval):
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -112,6 +111,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+            
+    wandb.finish()
 
 
 def main(args):
@@ -129,3 +130,23 @@ if __name__ == '__main__':
     
     main(args)
     wandb.finish()
+
+# 변경 가능한 부분
+# batch_size
+# lr_rate, epoch
+# lr_rate_scheduling
+# optimizer
+# data augmentation
+# input_data
+
+# 1. eda
+
+# 2.det eval.py가 어디서 사용됨?
+# deteval적용해서 loss값 알아보기
+# deteval적용해서 save best
+
+# 3. detect.py는 뭐하는데 쓰임?
+
+# 4. 실험을 통해 변경 가능한 부분에서 최댓값 알아보기
+
+# 5. (confusion matrix를 통해) 어떤 부분에 대해서 학습이 부족한지? 알아보기
