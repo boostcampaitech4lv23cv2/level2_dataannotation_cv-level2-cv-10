@@ -337,12 +337,22 @@ def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
 class SceneTextDataset(Dataset):
     def __init__(self, root_dir, split='train', image_size=1024, crop_size=512, color_jitter=True,
                  normalize=True):
-        with open(osp.join(root_dir, 'ufo/{}.json'.format(split)), 'r') as f:
-            anno = json.load(f)
+        # ufo json합치기
+        # image_path정보 미리 생성
+        anno = {'images':{}}
+        image_path_infos = {}
+        for dir in root_dir:
+            with open(osp.join(dir, 'ufo/{}.json'.format(split)), 'r') as f:
+                anno_i = json.load(f)
+            # 같은 이름의 image가 존재하는 경우 합치기 불가능
+            assert not any([image_name in anno['images'].keys() for image_name in anno_i['images'].keys()])
+            anno['images'].update(anno_i['images'])
+            image_path_info = {image_name:osp.join(dir, 'images', image_name) for image_name in anno_i['images'].keys()}
+            image_path_infos.update(image_path_info)
 
         self.anno = anno
         self.image_fnames = sorted(anno['images'].keys())
-        self.image_dir = osp.join(root_dir, 'images')
+        self.image_dir_info = image_path_infos
 
         self.image_size, self.crop_size = image_size, crop_size
         self.color_jitter, self.normalize = color_jitter, normalize
@@ -352,7 +362,7 @@ class SceneTextDataset(Dataset):
 
     def __getitem__(self, idx):
         image_fname = self.image_fnames[idx]
-        image_fpath = osp.join(self.image_dir, image_fname)
+        image_fpath = self.image_dir_info[image_fname]
 
         vertices, labels = [], []
         for word_info in self.anno['images'][image_fname]['words'].values():

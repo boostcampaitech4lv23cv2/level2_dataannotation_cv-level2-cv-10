@@ -1,5 +1,7 @@
 # 변경가능
 import os
+import ast
+import argparse
 import os.path as osp
 import time
 import math
@@ -19,12 +21,18 @@ from model import EAST
 from utils.seed import seed_everything
 import wandb
 
+def arg_as_list(s):
+    v=ast.literal_eval(s)
+    if type(v) is not list:
+        raise argparse.ArgumentTypeError("Argument \"%s\" is not a list " %(s))
+    v = ['/opt/ml/input/data/' + dataset for dataset in v]
+    return v
+
 def parse_args():
     parser = ArgumentParser()
 
     # Conventional args
-    parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR15_Korean'))
+    parser.add_argument('--data_dir', type=arg_as_list)
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
