@@ -65,11 +65,11 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
     train_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     train_dataset = EASTDataset(train_dataset)
-    valid_dataset = SceneTextDataset(data_dir, split='val', image_size=image_size, crop_size=input_size)
-    valid_dataset = EASTDataset(valid_dataset)
+    val_dataset = SceneTextDataset(data_dir, split='val', image_size=image_size, crop_size=input_size)
+    val_dataset = EASTDataset(val_dataset)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -147,7 +147,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                 pred_bboxes.extend(pred_bbox)
                 gt_bboxes.extend(gt_bbox)
             
-            img_len = len(valid_dataset)
+            img_len = len(val_dataset)
             pred_bboxes_dict, gt_bboxes_dict = dict(), dict()
             for img_num in range(img_len):
                 pred_bboxes_dict[img_num] = pred_bboxes[img_num]
