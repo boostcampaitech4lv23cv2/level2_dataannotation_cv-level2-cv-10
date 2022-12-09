@@ -19,6 +19,9 @@ from model import EAST
 from utils.seed import seed_everything
 import wandb
 from deteval import calc_deteval_metrics
+from detect import get_bboxes
+
+import numpy as np
 
 
 def parse_args():
@@ -116,24 +119,21 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
         with torch.no_grad():
             print("Calculating validation results...")
             model.eval()
-                
-            orig_sizes = []
-            pred_bbox, gt_bbox = [], []
             
-            for img, gt_score_map, gt_geo_map, roi_mask in val_loader:
+            for img, gt_score_map, gt_geo_map, _ in val_loader:
+                orig_sizes = []
+                pred_bbox, gt_bbox = [], []
+
+                for image in img:
+                    orig_sizes.append(image.shape[:2]) 
+
                 pred_score_map, pred_geo_map = model.forward(img.to(device))
                 pred_score_map, pred_geo_map = pred_score_map.cpu().numpy(), pred_geo_map.cpu().numpy()
                 gt_score_map, gt_geo_map = gt_score_map.cpu().numpy(), gt_geo_map.cpu().numpy()
 
                 for pred_score, pred_geo, gt_score, gt_geo, orig_size in zip(pred_score_map, pred_geo_map, gt_score_map, gt_geo_map, orig_sizes):
-                    gt_bbox_angle = get_bboxes(gt_score, gt_geo)
                     pred_bbox_angle = get_bboxes(pred_score, pred_geo)
-
-                    if gt_bbox_angle is None:
-                        gt_bbox_angle = np.zeros((0, 4, 2), dtype=np.float32)
-                    else:
-                        gt_bbox_angle = gt_bbox_angle[:, :8].reshape(-1, 4, 2)
-                        gt_bbox_angle *= max(orig_size) / input_size
+                    gt_bbox_angle = get_bboxes(gt_score, gt_geo)
 
                     if pred_bbox_angle is None:
                         pred_bbox_angle = np.zeros((0, 4, 2), dtype=np.float32)
@@ -141,25 +141,33 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                         pred_bbox_angle = pred_bbox_angle[:, :8].reshape(-1, 4, 2)
                         pred_bbox_angle *= max(orig_size) / input_size
 
+                    if gt_bbox_angle is None:
+                        gt_bbox_angle = np.zeros((0, 4, 2), dtype=np.float32)
+                    else:
+                        gt_bbox_angle = gt_bbox_angle[:, :8].reshape(-1, 4, 2)
+                        gt_bbox_angle *= max(orig_size) / input_size
+
                     pred_bbox.append(pred_bbox_angle)
                     gt_bbox.append(gt_bbox_angle)
 
                 pred_bboxes.extend(pred_bbox)
                 gt_bboxes.extend(gt_bbox)
             
-            img_len = len(val_dataset)
             pred_bboxes_dict, gt_bboxes_dict = dict(), dict()
+            img_len = len(val_dataset)
             for img_num in range(img_len):
-                pred_bboxes_dict[img_num] = pred_bboxes[img_num]
-                gt_bboxes_dict[img_num] = gt_bboxes[img_num]
+                pred_bboxes_dict[f'{img_num}'] = pred_bboxes[img_num]
+                gt_bboxes_dict[f'{img_num}'] = gt_bboxes[img_num]
             
             deteval_metrics = calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict)['total']
-            print(f'[Val] Precision: {deteval_metrics['precision']} | Recall: {deteval_metrics['recall']} | Hansumean: {deteval_metrics['hmean']}')
+            # fix
+            print(f"[Val] Precision: {deteval_metrics['precision']} | Recall: {deteval_metrics['recall']} | Hansumean: {deteval_metrics['hmean']}")
 
-            if deteval_metrics[hmean] > max_hmean:
-                max_hmean = deteval_metrics[hmean]
+            if deteval_metrics['hmean'] > max_hmean:
+                max_hmean = deteval_metrics['hmean']
                 if not osp.exists(model_dir):
                     os.makedirs(model_dir)
+
                 print('best model changed!')
                 ckpt_fpath = osp.join(model_dir, 'best.pth')
                 torch.save(model.state_dict(), ckpt_fpath)
