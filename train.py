@@ -41,7 +41,7 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/Upstage'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -81,7 +81,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
 
-    dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    dataset = SceneTextDataset(data_dir, split='train_anno_del', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -141,23 +141,8 @@ if __name__ == '__main__':
     args = parse_args()
     main(args)
 
-
-# 변경 가능한 부분
-# batch_size
-# lr_rate, epoch
-# lr_rate_scheduling
-# optimizer
-# data augmentation
-# input_data
-
-# 1. eda
-
-# 2.det eval.py가 어디서 사용됨?
-# deteval적용해서 loss값 알아보기
-# deteval적용해서 save best
-
-# 3. detect.py는 뭐하는데 쓰임?
-
-# 4. 실험을 통해 변경 가능한 부분에서 최댓값 알아보기
-
-# 5. (confusion matrix를 통해) 어떤 부분에 대해서 학습이 부족한지? 알아보기
+# 변경 불가
+# model.py
+# loss.py
+# east_dataset.py
+# detect.py
