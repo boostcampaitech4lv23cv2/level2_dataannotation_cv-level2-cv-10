@@ -24,7 +24,7 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR15_Korean'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -40,7 +40,7 @@ def parse_args():
 
     # 추가
     parser.add_argument('--exp_name', type=str, default='test')
-    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--seed', type=int, default=214)
 
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     # exp_name = increment_path(model_dir, exp_name)
     config = args.__dict__
     config['exp_name'] = exp_name
-    wandb.init(project='data_ann', entity='godkym', name=exp_name)
+    wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
 
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
