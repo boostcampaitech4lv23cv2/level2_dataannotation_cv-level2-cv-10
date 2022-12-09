@@ -62,7 +62,6 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     config['exp_name'] = exp_name
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
-
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -94,6 +93,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
+                # wandb logging
                 wandb.log({
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
@@ -101,6 +101,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                 pbar.set_postfix(val_dict)
 
         scheduler.step()
+
+        #TODO: validation
 
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
@@ -111,9 +113,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
-            
-    wandb.finish()
 
+    wandb.finish()
 
 def main(args):
     do_training(**args.__dict__)
