@@ -63,9 +63,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     # config['exp_name'] = exp_name
     # wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
-    train_dataset = SceneTextDataset(train_data_dir, split='train', image_size=image_size, crop_size=input_size)
+    train_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     train_dataset = EASTDataset(train_dataset)
-    valid_dataset = SceneTextDataset(valid_data_dir, split='val', image_size=image_size, crop_size=input_size)
+    valid_dataset = SceneTextDataset(data_dir, split='val', image_size=image_size, crop_size=input_size)
     valid_dataset = EASTDataset(valid_dataset)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
