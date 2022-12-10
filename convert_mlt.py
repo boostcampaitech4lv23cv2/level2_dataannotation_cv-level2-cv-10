@@ -10,9 +10,13 @@ from tqdm import tqdm
 
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-SRC_DATASET_DIR = '/data/datasets/ICDAR17_MLT'  # FIXME
-DST_DATASET_DIR = '/data/datasets/ICDAR17_Korean'  # FIXME
+# SRC_DATASET_DIR = '/data/datasets/ICDAR17_MLT'  # FIXME
+# DST_DATASET_DIR = '/data/datasets/ICDAR17_Korean'  # FIXME
+SRC_DATASET_DIR = '/opt/ml/input/data/ICDAR19'  # FIXME
+DST_DATASET_DIR = '/opt/ml/input/data/ICDAR19_ufo'  # FIXME
 
 NUM_WORKERS = 32  # FIXME
 
@@ -21,7 +25,9 @@ IMAGE_EXTENSIONS = {'.gif', '.jpg', '.png'}
 LANGUAGE_MAP = {
     'Korean': 'ko',
     'Latin': 'en',
-    'Symbols': None
+    'Mixed' : 'mix',
+    'Symbols': None,
+    'None': None
 }
 
 def get_language_token(x):
@@ -35,20 +41,29 @@ def maybe_mkdir(x):
 
 class MLT17Dataset(Dataset):
     def __init__(self, image_dir, label_dir, copy_images_to=None):
+        # image_paths = IMAGE_EXTENSION을 가진 파일들의 이름(경로)를 저장
+        # label_paths = .txt형식의 ground Truth를 저장
         image_paths = {x for x in glob(osp.join(image_dir, '*')) if osp.splitext(x)[1] in
                        IMAGE_EXTENSIONS}
         label_paths = set(glob(osp.join(label_dir, '*.txt')))
         assert len(image_paths) == len(label_paths)
 
+        # sample_ids: 모든 이미지의 이름들 모음
+        # samples_info: ids에 해당하는 image_path, label_path, word_info를 저장하는 dict
         sample_ids, samples_info = list(), dict()
         for image_path in image_paths:
+            # sample_id: 이미지 이름 추출
+            # ex) /opt/ml/input/data/ICDAR15/images/img_1.jpg   -> img_1.jpg    -> img_1
             sample_id = osp.splitext(osp.basename(image_path))[0]
-
-            label_path = osp.join(label_dir, 'gt_{}.txt'.format(sample_id))
+            print(sample_id)
+            # label_path: sample_id에 해당하는 gt위치 저장
+            # ex) img_1 -> /opt/ml/input/data/ICDAR15/gt_txt/gt_img_1.txt
+            label_path = osp.join(label_dir, '{}.txt'.format(sample_id))
             assert label_path in label_paths
-
+            # words_info: ufo Format의 words에 들어가는 정보(point, transcription, language, orientation, tags)
+            # extra_info: image안의 모든 word의 language 정보 dict_list
             words_info, extra_info = self.parse_label_file(label_path)
-            if 'ko' not in extra_info['languages'] or extra_info['languages'].difference({'ko', 'en'}):
+            if 'ko' not in extra_info['languages'] and 'en' not in extra_info['languages']:
                 continue
 
             sample_ids.append(sample_id)
@@ -87,7 +102,7 @@ class MLT17Dataset(Dataset):
                 points = np.roll(points, -start_idx, axis=0).tolist()
             return points
 
-        with open(label_path, encoding='utf-8') as f:
+        with open(label_path, encoding='utf-8-sig') as f:
             lines = f.readlines()
 
         words_info, languages = dict(), set()
@@ -104,7 +119,8 @@ class MLT17Dataset(Dataset):
                 points=points, transcription=transcription, language=[language],
                 illegibility=illegibility, orientation=orientation, word_tags=None
             )
-            languages.add(language)
+            if language:
+                languages.add(language)
 
         return words_info, dict(languages=languages)
 
@@ -113,17 +129,23 @@ def main():
     dst_image_dir = osp.join(DST_DATASET_DIR, 'images')
     # dst_image_dir = None
 
-    mlt_train = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'raw/ch8_training_images'),
-                             osp.join(SRC_DATASET_DIR, 'raw/ch8_training_gt'),
+    # mlt_train = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'raw/ch8_training_images'),
+    #                          osp.join(SRC_DATASET_DIR, 'raw/ch8_training_gt'),
+    #                          copy_images_to=dst_image_dir)
+    # mlt_valid = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'raw/ch8_validation_images'),
+    #                          osp.join(SRC_DATASET_DIR, 'raw/ch8_validation_gt'),
+    #                          copy_images_to=dst_image_dir)
+    # mlt_merged = ConcatDataset([mlt_train, mlt_valid])
+
+    mlt_train = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'images'),
+                             osp.join(SRC_DATASET_DIR, 'annots'),
                              copy_images_to=dst_image_dir)
-    mlt_valid = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'raw/ch8_validation_images'),
-                             osp.join(SRC_DATASET_DIR, 'raw/ch8_validation_gt'),
-                             copy_images_to=dst_image_dir)
-    mlt_merged = ConcatDataset([mlt_train, mlt_valid])
 
     anno = dict(images=dict())
-    with tqdm(total=len(mlt_merged)) as pbar:
-        for batch in DataLoader(mlt_merged, num_workers=NUM_WORKERS, collate_fn=lambda x: x):
+    # with tqdm(total=len(mlt_merged)) as pbar:
+    #     for batch in DataLoader(mlt_merged, num_workers=NUM_WORKERS, collate_fn=lambda x: x):
+    with tqdm(total=len(mlt_train)) as pbar:
+        for batch in DataLoader(mlt_train, num_workers=NUM_WORKERS, collate_fn=lambda x: x):
             image_fname, sample_info = batch[0]
             anno['images'][image_fname] = sample_info
             pbar.update(1)
