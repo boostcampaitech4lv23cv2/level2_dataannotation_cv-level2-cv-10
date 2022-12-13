@@ -373,10 +373,18 @@ class SceneTextDataset(Dataset):
         image = np.array(image)
 
         funcs = []
+        funcs.append(A.CLAHE(p=0.5))
         if self.color_jitter:
             funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
+        funcs.append(A.GaussNoise(p=0.2))    
+        funcs.append(A.OneOf([
+                        A.MotionBlur(p=0.2),
+                        A.Blur(p=0.2),
+                        A.GaussianBlur(p=0.2),                
+                        ], p=0.2))
         if self.normalize:
             funcs.append(A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+        # funcs.append(A.RandomBrightnessContrast(p=0.5))
         transform = A.Compose(funcs)
 
         image = transform(image=image)['image']

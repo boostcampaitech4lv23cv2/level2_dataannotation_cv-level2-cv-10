@@ -15,12 +15,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # SRC_DATASET_DIR = '/data/datasets/ICDAR17_MLT'  # FIXME
 # DST_DATASET_DIR = '/data/datasets/ICDAR17_Korean'  # FIXME
-SRC_DATASET_DIR = '/opt/ml/input/data/ICDAR19'  # FIXME
-DST_DATASET_DIR = '/opt/ml/input/data/ICDAR19_ufo'  # FIXME
+SRC_DATASET_DIR = '/opt/ml/input/data/ICDAR15'  # FIXME
+DST_DATASET_DIR = '/opt/ml/input/data/ICDAR15_ufo'  # FIXME
 
 NUM_WORKERS = 32  # FIXME
 
-IMAGE_EXTENSIONS = {'.gif', '.jpg', '.png'}
+IMAGE_EXTENSIONS = {'.gif', '.jpg'}
 
 LANGUAGE_MAP = {
     'Korean': 'ko',
@@ -55,10 +55,9 @@ class MLT17Dataset(Dataset):
             # sample_id: 이미지 이름 추출
             # ex) /opt/ml/input/data/ICDAR15/images/img_1.jpg   -> img_1.jpg    -> img_1
             sample_id = osp.splitext(osp.basename(image_path))[0]
-            print(sample_id)
             # label_path: sample_id에 해당하는 gt위치 저장
             # ex) img_1 -> /opt/ml/input/data/ICDAR15/gt_txt/gt_img_1.txt
-            label_path = osp.join(label_dir, '{}.txt'.format(sample_id))
+            label_path = osp.join(label_dir, 'gt_{}.txt'.format(sample_id))
             assert label_path in label_paths
             # words_info: ufo Format의 words에 들어가는 정보(point, transcription, language, orientation, tags)
             # extra_info: image안의 모든 word의 language 정보 dict_list
@@ -80,13 +79,13 @@ class MLT17Dataset(Dataset):
     def __getitem__(self, idx):
         sample_info = self.samples_info[self.sample_ids[idx]]
 
-        image_fname = osp.basename(sample_info['image_path'])
+        image_fname = '15'+osp.basename(sample_info['image_path'])
         image = Image.open(sample_info['image_path'])
         img_w, img_h = image.size
 
         if self.copy_images_to:
             maybe_mkdir(self.copy_images_to)
-            image.save(osp.join(self.copy_images_to, osp.basename(sample_info['image_path'])))
+            image.save(osp.join(self.copy_images_to, '15'+osp.basename(sample_info['image_path'])))
 
         license_tag = dict(usability=True, public=True, commercial=True, type='CC-BY-SA',
                            holder=None)
@@ -105,16 +104,43 @@ class MLT17Dataset(Dataset):
         with open(label_path, encoding='utf-8-sig') as f:
             lines = f.readlines()
 
+        # words_info, languages = dict(), set()
+        # for word_idx, line in enumerate(lines):
+        #     items = line.strip().split(',', 9)
+        #     language, transcription = items[8], items[9]
+        #     points = np.array(items[:8], dtype=np.float32).reshape(4, 2).tolist()
+        #     points = rearrange_points(points)
+
+        #     illegibility = transcription == '###'
+        #     orientation = 'Horizontal'
+        #     language = get_language_token(language)
+        #     words_info[word_idx] = dict(
+        #         points=points, transcription=transcription, language=[language],
+        #         illegibility=illegibility, orientation=orientation, word_tags=None
+        #     )
+        #     if language:
+        #         languages.add(language)
+
+        # ICDAR15 ver
         words_info, languages = dict(), set()
         for word_idx, line in enumerate(lines):
-            items = line.strip().split(',', 9)
-            language, transcription = items[8], items[9]
+            items = line.strip().split(',', 8)
+            transcription = items[8]
             points = np.array(items[:8], dtype=np.float32).reshape(4, 2).tolist()
             points = rearrange_points(points)
 
             illegibility = transcription == '###'
             orientation = 'Horizontal'
-            language = get_language_token(language)
+            if transcription != '###' :
+                for x in transcription :
+                    if x.isalpha() :
+                        language = 'en'
+                        break
+                else : 
+                    language = 'None'
+            else :
+                language = 'None'
+
             words_info[word_idx] = dict(
                 points=points, transcription=transcription, language=[language],
                 illegibility=illegibility, orientation=orientation, word_tags=None
