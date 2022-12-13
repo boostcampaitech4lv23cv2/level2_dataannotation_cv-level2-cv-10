@@ -19,12 +19,12 @@ from dataset import SceneTextDataset
 from model import EAST
 
 from utils.seed import seed_everything
+from utils.seed import CosineAnnealingWarmupRestarts
 import wandb
 from deteval import calc_deteval_metrics
 from detect import get_bboxes
 
 import numpy as np
-
 
 def parse_args():
     parser = ArgumentParser()
@@ -63,15 +63,19 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
      # fix seed
     seed_everything(seed)
     
-    # # wandb
-    # wandb.login()
-    # config = args.__dict__
-    # config['exp_name'] = exp_name
-    # wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
+    # wandb
+    wandb.login()
+    config = args.__dict__
+    config['exp_name'] = exp_name
+    wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
-    train_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    wandb.define_metric('Recall', summary='max')
+    wandb.define_metric('Hansumean', summary='max')
+    wandb.define_metric('Precision', summary='max')
+
+    train_dataset = SceneTextDataset(data_dir, split='train1', image_size=image_size, crop_size=input_size)
     train_dataset = EASTDataset(train_dataset)
-    val_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    val_dataset = SceneTextDataset(data_dir, split='valid1', image_size=image_size, crop_size=input_size)
     val_dataset = EASTDataset(val_dataset)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -81,9 +85,17 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     num_batches = math.ceil(len(train_dataset) / batch_size)
 
     model = EAST()
+    # model.load_state_dict(torch.load('pths/latest_151719.pth'))
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    scheduler = CosineAnnealingWarmupRestarts(optimizer,
+                                          first_cycle_steps=max_epoch // 8,
+                                          cycle_mult=2.0,
+                                          max_lr=learning_rate,
+                                          min_lr=learning_rate / 1000,
+                                          warmup_steps=max_epoch // 40,
+                                          gamma=0.5)
 
     max_hmean = 0
     for epoch in range(max_epoch):      
@@ -109,9 +121,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                         'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'], 'IoU loss': extra_info['iou_loss']
                         }
                 # wandb logging
-                # wandb.log({
-                #     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'], 'IoU loss': extra_info['iou_loss']
-                # })
+                wandb.log({
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'], 'IoU loss': extra_info['iou_loss']
+                })
                 pbar.set_postfix(val_dict)
 
         print('[Train] Mean loss: {:.4f} | Elapsed time: {}'.format(
@@ -179,9 +191,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                 ckpt_fpath = osp.join(model_dir, 'best.pth')
                 torch.save(model.state_dict(), ckpt_fpath)
             # wandb logging
-            # wandb.log({
-            #     'Precision': deteval_metrics['precision'], 'Recall': deteval_metrics['recall'], 'Hansumean': deteval_metrics['hmean']
-            # })
+            wandb.log({
+                'Precision': deteval_metrics['precision'], 'Recall': deteval_metrics['recall'], 'Hansumean': deteval_metrics['hmean']
+            })
 
         # scheduler
         scheduler.step()

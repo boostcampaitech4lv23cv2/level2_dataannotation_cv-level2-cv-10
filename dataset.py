@@ -385,8 +385,22 @@ class SceneTextDataset(Dataset):
         funcs = []
         if self.color_jitter:
             funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
+        # funcs.append(A.OneOf([
+        #                 A.Emboss(p=0.5),
+        #                 A.Sharpen(p=0.5)               
+        #                 ], p=0.3))   
+        funcs.append(A.GaussNoise(p=0.2))    
+        funcs.append(A.OneOf([
+                        A.MotionBlur(p=0.2),
+                        A.Blur(p=0.2),
+                        A.GaussianBlur(p=0.2),                
+                        ], p=0.2))
+        # funcs.append(A.OneOf([
+        #                 A.RandomSnow(p=0.2),
+        #                 A.RandomRain(p=0.2),                
+        #                 ], p=0.2))
         if self.normalize:
-            funcs.append(A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+            funcs.append(A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
         transform = A.Compose(funcs)
 
         image = transform(image=image)['image']
