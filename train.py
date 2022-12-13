@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 import torch
 from torch import cuda
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torch.optim import lr_scheduler
 from tqdm import tqdm
 
@@ -21,18 +21,23 @@ from model import EAST
 from utils.seed import seed_everything
 import wandb
 
-def arg_as_list(s):
+def arg_as_datadir_list(s):
     v=ast.literal_eval(s)
     if type(v) is not list:
         raise argparse.ArgumentTypeError("Argument \"%s\" is not a list " %(s))
     v = ['/opt/ml/input/data/' + dataset for dataset in v]
     return v
 
+def arg_as_num_list(s):
+    v=ast.literal_eval(s)
+    if type(v) is not list:
+        raise argparse.ArgumentTypeError("Argument \"%s\" is not a list " %(s))
+    return v
+
 def parse_args():
     parser = ArgumentParser()
 
     # Conventional args
-    parser.add_argument('--data_dir', type=arg_as_list, default="['ICDAR17_Korean']")
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -41,14 +46,18 @@ def parse_args():
 
     parser.add_argument('--image_size', type=int, default=1024)
     parser.add_argument('--input_size', type=int, default=512)
-    parser.add_argument('--batch_size', type=int, default=36)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
-    parser.add_argument('--max_epoch', type=int, default=55)
+    parser.add_argument('--learning_rate', type=float, default=5e-4)
+    parser.add_argument('--max_epoch', type=int, default=100)
     parser.add_argument('--save_interval', type=int, default=1)
-
-    # 추가
-    parser.add_argument('--exp_name', type=str, default='test')
     parser.add_argument('--seed', type=int, default=214)
+
+    # 설정
+    parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--exp_name', type=str, default='test')
+    parser.add_argument('--data_dir', type=arg_as_datadir_list, default="['ICDAR17_Korean']")
+    parser.add_argument('--total', type=int)
+    parser.add_argument('--Weighted', type=arg_as_num_list, default="[1, 1, 1, 1, 1, 1]")
+    
 
     args = parser.parse_args()
 
@@ -59,7 +68,7 @@ def parse_args():
 
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval, seed, exp_name):
+                learning_rate, max_epoch, save_interval, seed, exp_name, Weighted, total):
     # fix seed
     seed_everything(seed)
     
@@ -71,15 +80,28 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    each_dataset_len = dataset.get_each_dataset_len()
     dataset = EASTDataset(dataset)
-    num_batches = math.ceil(len(dataset) / batch_size)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-
+    # num_batches = math.ceil(len(dataset) / batch_size)
+    # train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    ############
+    # parameter추가 할 것: Weighted, total_data_num
+    Weighted = Weighted[:len(data_dir)]
+    total_data_num = total
+    all_Weight = []
+    for i in range(len(data_dir)):
+        W = [Weighted[i]] * each_dataset_len[i]
+        all_Weight.extend(W)
+    Sampler = WeightedRandomSampler(W, total_data_num)
+    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, sampler=Sampler)
+    num_batches = math.ceil(total_data_num / batch_size)
+    ######################
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
-    model.load_state_dict(torch.load('/opt/ml/input/data/_ArchivePth/Base_ICDAR151719_145Epoch_05841.pth'))
+    # model.load_state_dict(torch.load('/opt/ml/input/data/_ArchivePth/Base_ICDAR151719_200Epoch_06619.pth'))
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
 
     model.train()
@@ -132,7 +154,6 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
     main(args)
-
 
 # 변경 가능한 부분
 # batch_size

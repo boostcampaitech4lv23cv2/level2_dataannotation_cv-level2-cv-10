@@ -318,13 +318,13 @@ def generate_roi_mask(image, vertices, labels):
     return mask
 
 
-def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
+def filter_vertices(vertices, labels, ignore_under=0, drop_under=0, test=0):
     if drop_under == 0 and ignore_under == 0:
         return vertices, labels
 
     new_vertices, new_labels = vertices.copy(), labels.copy()
-
     areas = np.array([Polygon(v.reshape((4, 2))).convex_hull.area for v in vertices])
+
     labels[areas < ignore_under] = 0
 
     if drop_under > 0:
@@ -339,6 +339,7 @@ class SceneTextDataset(Dataset):
                  normalize=True):
         # ufo json합치기
         # image_path정보 미리 생성
+        each_len = []
         anno = {'images':{}}
         image_path_infos = {}
         for dir in root_dir:
@@ -349,13 +350,18 @@ class SceneTextDataset(Dataset):
             anno['images'].update(anno_i['images'])
             image_path_info = {image_name:osp.join(dir, 'images', image_name) for image_name in anno_i['images'].keys()}
             image_path_infos.update(image_path_info)
+            each_len.append(len(anno_i['images']))
+        self.each_len = each_len
 
         self.anno = anno
-        self.image_fnames = sorted(anno['images'].keys())
+        self.image_fnames = list(anno['images'].keys())
         self.image_dir_info = image_path_infos
 
         self.image_size, self.crop_size = image_size, crop_size
         self.color_jitter, self.normalize = color_jitter, normalize
+        
+    def get_each_dataset_len(self):
+        return self.each_len
 
     def __len__(self):
         return len(self.image_fnames)
@@ -368,9 +374,10 @@ class SceneTextDataset(Dataset):
         for word_info in self.anno['images'][image_fname]['words'].values():
             vertices.append(np.array(word_info['points']).flatten())
             labels.append(int(not word_info['illegibility']))
-        vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
+        # vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)        
+        vertices, labels = np.array(vertices, dtype=object), np.array(labels, dtype=np.int64)
 
-        vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
+        vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1, test=image_fname)
 
         image = Image.open(image_fpath)
         image, vertices = resize_img(image, vertices, self.image_size)
@@ -389,6 +396,7 @@ class SceneTextDataset(Dataset):
         #                 A.Emboss(p=0.5),
         #                 A.Sharpen(p=0.5)               
         #                 ], p=0.3))   
+        # funcs.append(A.randombr)
         funcs.append(A.GaussNoise(p=0.2))    
         funcs.append(A.OneOf([
                         A.MotionBlur(p=0.2),
