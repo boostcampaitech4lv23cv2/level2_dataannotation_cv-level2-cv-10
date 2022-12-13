@@ -17,7 +17,7 @@ from dataset import SceneTextDataset
 from model import EAST
 
 from utils.seed import seed_everything
-from utils.CosineAnnealing import CosineAnnealingWarmupRestarts
+from utils.seed import CosineAnnealingWarmupRestarts
 import wandb
 from deteval import calc_deteval_metrics
 from detect import get_bboxes
@@ -29,7 +29,7 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR19_Korean'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -66,6 +66,10 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     config['exp_name'] = exp_name
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
+    wandb.define_metric('Recall', summary='max')
+    wandb.define_metric('Hansumean', summary='max')
+    wandb.define_metric('Precision', summary='max')
+
     train_dataset = SceneTextDataset(data_dir, split='train1', image_size=image_size, crop_size=input_size)
     train_dataset = EASTDataset(train_dataset)
     val_dataset = SceneTextDataset(data_dir, split='valid1', image_size=image_size, crop_size=input_size)
@@ -77,16 +81,16 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model = EAST()
-    model.load_state_dict(torch.load('pths/latest_151719.pth'))
+    # model.load_state_dict(torch.load('pths/latest_151719.pth'))
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
     scheduler = CosineAnnealingWarmupRestarts(optimizer,
-                                          first_cycle_steps=max_epoch // 7,
+                                          first_cycle_steps=max_epoch // 8,
                                           cycle_mult=2.0,
                                           max_lr=learning_rate,
                                           min_lr=learning_rate / 1000,
-                                          warmup_steps=max_epoch // 35,
+                                          warmup_steps=max_epoch // 40,
                                           gamma=0.5)
 
     max_hmean = 0
