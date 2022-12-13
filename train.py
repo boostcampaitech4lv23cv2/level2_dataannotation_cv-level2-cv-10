@@ -24,7 +24,7 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR19'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/book01_04'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -38,6 +38,9 @@ def parse_args():
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
 
+    parser.add_argument('--exp_name', type=str, default='test')
+    parser.add_argument('--seed', type=int, default=214)
+    
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -62,7 +65,7 @@ def increment_path(model_dir, exp_name, exist_ok=False):
         return f"{exp_name}{n}"
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval):
+                learning_rate, max_epoch, save_interval, exp_name, seed):
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -70,8 +73,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
+    model.load_state_dict(torch.load('pths/latest_151719.pth'))
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
 
     model.train()
@@ -111,8 +115,6 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
-            
-    wandb.finish()
 
 
 def main(args):
@@ -121,7 +123,7 @@ def main(args):
 
 if __name__ == '__main__':    
     args = parse_args()
-    seed_everything()
+    seed_everything(args.seed)
     exp_name = args.exp_name
     exp_name = increment_path(args.model_dir, exp_name)
     config = args.__dict__
