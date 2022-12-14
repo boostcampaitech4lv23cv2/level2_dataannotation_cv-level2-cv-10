@@ -318,7 +318,7 @@ def generate_roi_mask(image, vertices, labels):
     return mask
 
 
-def filter_vertices(vertices, labels, ignore_under=0, drop_under=0, test=0):
+def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
     if drop_under == 0 and ignore_under == 0:
         return vertices, labels
 
@@ -377,7 +377,7 @@ class SceneTextDataset(Dataset):
         # vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)        
         vertices, labels = np.array(vertices, dtype=object), np.array(labels, dtype=np.int64)
 
-        vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1, test=image_fname)
+        vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
 
         image = Image.open(image_fpath)
         image, vertices = resize_img(image, vertices, self.image_size)
