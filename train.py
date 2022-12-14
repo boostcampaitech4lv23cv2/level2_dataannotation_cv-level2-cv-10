@@ -50,13 +50,13 @@ def parse_args():
 
     parser.add_argument('--image_size', type=int, default=1024)
     parser.add_argument('--input_size', type=int, default=512)
-    parser.add_argument('--batch_size', type=int, default=12)
+    parser.add_argument('--batch_size', type=int, default=24)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
-    parser.add_argument('--max_epoch', type=int, default=200)
+    parser.add_argument('--max_epoch', type=int, default=100)
     parser.add_argument('--save_interval', type=int, default=5)
 
     # 추가
-    parser.add_argument('--exp_name', type=str, default='15+17+19+aug')
+    parser.add_argument('--exp_name', type=str, default='15+17+19+aug_v2+batch24')
     parser.add_argument('--seed', type=int, default=214)
 
     args = parser.parse_args()
@@ -80,9 +80,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     config['exp_name'] = exp_name
     wandb.init(project='data_ann', entity='godkym', name=exp_name, config=config)
 
-    wandb.define_metric('Recall', summary='max')
-    wandb.define_metric('Hansumean', summary='max')
-    wandb.define_metric('Precision', summary='max')
+    # wandb.define_metric('Recall', summary='max')
+    # wandb.define_metric('Hansumean', summary='max')
+    # wandb.define_metric('Precision', summary='max')
 
     dataset = SceneTextDataset(data_dir, split='train_151719_ver', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
