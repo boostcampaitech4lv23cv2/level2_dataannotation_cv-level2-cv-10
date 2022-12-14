@@ -64,7 +64,6 @@ class MLT17Dataset(Dataset):
             words_info, extra_info = self.parse_label_file(label_path)
             if 'ko' not in extra_info['languages'] and 'en' not in extra_info['languages']:
                 continue
-
             sample_ids.append(sample_id)
             samples_info[sample_id] = dict(image_path=image_path, label_path=label_path,
                                            words_info=words_info)
@@ -123,6 +122,7 @@ class MLT17Dataset(Dataset):
 
         # ICDAR15 ver
         words_info, languages = dict(), set()
+        # 주의: ICDAR15에는 language정보가 없음!
         for word_idx, line in enumerate(lines):
             items = line.strip().split(',', 8)
             transcription = items[8]
