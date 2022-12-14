@@ -59,7 +59,6 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--exp_name', type=str, default='test')
     parser.add_argument('--data_dir', type=arg_as_datadir_list, default="['ICDAR17_Korean']")
-    parser.add_argument('--val_data_dir', type=arg_as_datadir_list, default="['ICDAR17_Korean']")
     parser.add_argument('--total', type=int)
     parser.add_argument('--Weighted', type=arg_as_num_list, default="[1, 1, 1, 1, 1, 1]")
     parser.add_argument('--load_pre', type=str)
@@ -74,7 +73,7 @@ def parse_args():
     return args
 
 
-def do_training(data_dir, model_dir, val_data_dir, val_interval, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dir, model_dir, val_interval, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval, seed, exp_name, Weighted, total, load_pre=None):
     # fix seed
     seed_everything(seed)
@@ -98,6 +97,7 @@ def do_training(data_dir, model_dir, val_data_dir, val_interval, device, image_s
     str_w = ''
     total_data_num = total
     all_Weight = []
+    print(each_dataset_len)
     for i in range(len(data_dir)):
         W = [Weighted[i]] * each_dataset_len[i]
         all_Weight.extend(W)
@@ -114,7 +114,8 @@ def do_training(data_dir, model_dir, val_data_dir, val_interval, device, image_s
         model.load_state_dict(torch.load(load_pre))
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, max_epoch // 8, T_mult=2, eta_min=0.00001)
 
     model.train()
     max_hmean = 0
@@ -159,10 +160,11 @@ def do_training(data_dir, model_dir, val_data_dir, val_interval, device, image_s
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
 
-        if epoch % val_interval != 0:
+        if epoch==0:pass
+        elif (epoch + 1) % val_interval != 0:
             continue
         #########################################  validation  ############################################################################################################
-        val_dataset = SceneTextDataset(val_data_dir, split='train', image_size=image_size, crop_size=input_size)
+        val_dataset = SceneTextDataset(data_dir, split='valid', image_size=image_size, crop_size=input_size)
         val_dataset = EASTDataset(val_dataset)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         gt_bboxes, pred_bboxes, transcriptions = [], [], []
@@ -170,7 +172,7 @@ def do_training(data_dir, model_dir, val_data_dir, val_interval, device, image_s
             print("Calculating validation results...")
             model.eval()
             
-            for img, gt_score_map, gt_geo_map, _ in val_loader:
+            for img, gt_score_map, gt_geo_map, _ in tqdm(val_loader):
                 orig_sizes = []
                 pred_bbox, gt_bbox, transcription = [], [], []
 
